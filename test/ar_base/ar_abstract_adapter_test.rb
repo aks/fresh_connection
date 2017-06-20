@@ -1,23 +1,38 @@
 require "test_helper"
 
 class AbstractAdapterTest < Minitest::Test
+  class FakeAddress < ActiveRecord::Base
+    self.table_name = :addresses
+    establish_fresh_connection :fake_replica
+  end
+
   def setup
     ActiveRecord::Base.connection.clear_query_cache
   end
 
+  test "cache_query is correct after select once" do
+    filename = File.join(__dir__, "../../log/sql.log")
+
+    Address.cache do
+      Address.find(1)
+      Address.find(1)
+      last_line = `tail -1 #{filename}`
+      assert_match /CACHE/, last_line
+    end
+  end
+
   test "cache_query is correct after master update" do
-    old_name = SecureRandom.hex(3)
-    user_id = User.create(name: old_name).id
+    old_pref = SecureRandom.hex(3)
+    a = FakeAddress.create(prefecture: old_pref)
 
-    User.cache do
-      new_name = old_name + "1"
-      u = User.find(user_id)
-      u.name = new_name
-      u.save!
+    Address.cache do
+      new_pref = old_pref + "1"
+      b = FakeAddress.find(a.id)
+      b.prefecture = new_pref
+      b.save!
 
-      user = User.find(user_id)
-      assert_equal user.name, new_name
+      address = FakeAddress.find(a.id)
+      assert_equal new_pref, address.prefecture
     end
   end
 end
-
